@@ -42,9 +42,7 @@ t_vite_webgpu() {
 t_glslviewer() {
   have glslViewer || return 77
   cd "$root/glslviewer" || return 1
-  glslViewer shader.frag -w "$res" -h "$res" --headless -E screenshot,frame.png >/dev/null 2>&1 || return 1
-  python3 "$root/tools/png2ppm.py" frame.png frame.ppm || return 1
-  assert frame.ppm
+  ./test.sh "$res" >/dev/null 2>&1
 }
 
 t_godot() {
