@@ -48,9 +48,7 @@ t_glslviewer() {
 t_godot() {
   have godot || return 77
   cd "$root/godot" || return 1
-  godot --headless --path . --script res://render.gd -- "$res" >/dev/null 2>&1 || return 1
-  python3 "$root/tools/png2ppm.py" frame.png frame.ppm || return 1
-  assert frame.ppm
+  ./test.sh "$res" >/dev/null 2>&1
 }
 
 t_rust_wgpu() {

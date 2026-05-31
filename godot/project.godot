@@ -1,0 +1,16 @@
+config_version=5
+
+[application]
+
+config/name="mgpu-godot"
+run/main_scene="res://Main.tscn"
+config/features=PackedStringArray("4.3")
+
+[display]
+
+window/size/viewport_width=512
+window/size/viewport_height=512
+
+[rendering]
+
+viewport/hdr_2d=false
