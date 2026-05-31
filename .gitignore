@@ -1,0 +1,11 @@
+node_modules/
+dist/
+target/
+.zig-cache/
+zig-out/
+frame.ppm
+frame.png
+*.o
+.godot/
+__pycache__/
+.DS_Store
