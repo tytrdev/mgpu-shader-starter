@@ -1,0 +1,18 @@
+[package]
+name = "rust-wgpu"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "rust-wgpu"
+path = "src/main.rs"
+
+[lib]
+name = "starter"
+path = "src/lib.rs"
+
+[dependencies]
+wgpu = "22"
+winit = "0.29"
+pollster = "0.3"
+bytemuck = { version = "1", features = ["derive"] }
