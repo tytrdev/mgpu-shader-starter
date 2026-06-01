@@ -12,14 +12,16 @@ pub fn build(b: *std.Build) void {
         .gl = true,
     });
 
-    const exe = b.addExecutable(.{
-        .name = "zig-sokol",
+    const mod = b.createModule(.{
         .root_source_file = b.path("src/main.zig"),
         .target = target,
         .optimize = optimize,
+        .link_libc = true,
     });
-    exe.root_module.addImport("sokol", dep_sokol.module("sokol"));
-    exe.linkFramework("OpenGL");
+    mod.addImport("sokol", dep_sokol.module("sokol"));
+    mod.linkFramework("OpenGL", .{});
+
+    const exe = b.addExecutable(.{ .name = "zig-sokol", .root_module = mod });
     b.installArtifact(exe);
 
     const run = b.addRunArtifact(exe);
@@ -28,11 +30,15 @@ pub fn build(b: *std.Build) void {
 
     const render = b.addRunArtifact(exe);
     render.addArg("render");
-    if (b.args) |a| render.addArgs(a);
+    if (b.args) |a| {
+        render.addArgs(a);
+    } else {
+        render.addArg("256");
+        render.addArg("frame.ppm");
+    }
     b.step("render", "Render one frame to a PPM").dependOn(&render.step);
 
-    const test_step = b.step("test", "Render and assert against tools/ref.py");
     const py = b.addSystemCommand(&.{ "python3", "../tools/assert_frame.py", "frame.ppm" });
     py.step.dependOn(&render.step);
-    test_step.dependOn(&py.step);
+    b.step("test", "Render and assert against tools/ref.py").dependOn(&py.step);
 }

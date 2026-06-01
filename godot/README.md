@@ -18,8 +18,9 @@ Or open `project.godot` in the editor and press F5.
 
 ## Test
 
-Renders one frame (256x256, `iTime=0`) to an offscreen `SubViewport`, saves a
-PNG, converts it to PPM, and asserts against `../tools/ref.py`.
+Renders one frame (256x256, `iTime=0`) to a `SubViewport`, saves a PNG, converts
+it to PPM, and asserts against `../tools/ref.py`. Godot's `--headless` mode has
+no GPU renderer, so the test opens a brief window to draw the frame.
 
 ```sh
 ./test.sh

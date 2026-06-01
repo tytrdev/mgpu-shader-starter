@@ -3,8 +3,11 @@ dist/
 target/
 .zig-cache/
 zig-out/
+zig-pkg/
+c-raylib/starter
 frame.ppm
 frame.png
+00000.png
 *.o
 .godot/
 __pycache__/

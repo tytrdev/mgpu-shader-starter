@@ -1,13 +1,12 @@
 .{
     .name = .zig_sokol,
     .version = "0.1.0",
-    .minimum_zig_version = "0.14.0",
-    .fingerprint = 0x1a2b3c4d5e6f7a8b,
+    .minimum_zig_version = "0.16.0",
+    .fingerprint = 0xc03d2dac62f96033,
     .dependencies = .{
-        // Populate the hash with:
-        //   zig fetch --save git+https://github.com/floooh/sokol-zig.git
         .sokol = .{
-            .url = "git+https://github.com/floooh/sokol-zig.git",
+            .url = "git+https://github.com/floooh/sokol-zig.git#712ff4bf36761592656a7f648b2e80c59bfa6c95",
+            .hash = "sokol-0.1.0-pb1HK8RqNwCA1y9yR1y0VNeYPv0m2TxtWsQP9y3w6rrS",
         },
     },
     .paths = .{

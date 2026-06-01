@@ -5,8 +5,11 @@ const sg = sokol.gfx;
 const sapp = sokol.app;
 const sglue = sokol.glue;
 
-const gl = @cImport({
+const c = @cImport({
     @cInclude("OpenGL/gl3.h");
+    @cInclude("stdio.h");
+    @cInclude("stdlib.h");
+    @cInclude("crt_externs.h");
 });
 
 const vs_source =
@@ -19,13 +22,11 @@ const vs_source =
 
 const fs_source =
     \\#version 410
-    \\layout(std140) uniform params {
-    \\    vec3 iResolution;
-    \\    float iTime;
-    \\    vec4 iMouse;
-    \\    float iTimeDelta;
-    \\    int iFrame;
-    \\};
+    \\uniform vec3 iResolution;
+    \\uniform float iTime;
+    \\uniform vec4 iMouse;
+    \\uniform float iTimeDelta;
+    \\uniform int iFrame;
     \\out vec4 frag_color;
     \\void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     \\    vec2 uv = fragCoord/iResolution.xy;
@@ -37,6 +38,7 @@ const fs_source =
     \\}
 ;
 
+// std140 layout, must match the glsl_uniforms reflection below.
 const Params = extern struct {
     i_resolution: [3]f32,
     i_time: f32,
@@ -48,15 +50,15 @@ const Params = extern struct {
 
 var state: struct {
     pip: sg.Pipeline = .{},
-    bind: sg.Bindings = .{},
     pass_action: sg.PassAction = .{},
     frame: i32 = 0,
+    time: f32 = 0,
     mouse: [4]f32 = .{ 0, 0, 0, 0 },
 } = .{};
 
 var headless = false;
 var out_res: i32 = 256;
-var out_file: []const u8 = "frame.ppm";
+var out_file: [*c]const u8 = "frame.ppm";
 
 export fn init() void {
     sg.setup(.{ .environment = sglue.environment(), .logger = .{ .func = slog.func } });
@@ -68,12 +70,23 @@ export fn init() void {
         .stage = .FRAGMENT,
         .size = @sizeOf(Params),
         .layout = .STD140,
-        .glsl_uniform_block_name = "params",
+        .glsl_uniforms = blk: {
+            var u = [_]sg.GlslShaderUniform{.{}} ** 16;
+            u[0] = .{ .type = .FLOAT3, .array_count = 1, .glsl_name = "iResolution" };
+            u[1] = .{ .type = .FLOAT, .array_count = 1, .glsl_name = "iTime" };
+            u[2] = .{ .type = .FLOAT4, .array_count = 1, .glsl_name = "iMouse" };
+            u[3] = .{ .type = .FLOAT, .array_count = 1, .glsl_name = "iTimeDelta" };
+            u[4] = .{ .type = .INT, .array_count = 1, .glsl_name = "iFrame" };
+            break :blk u;
+        },
     };
     const shd = sg.makeShader(shd_desc);
 
     state.pip = sg.makePipeline(.{ .shader = shd });
-    state.pass_action.colors[0] = .{ .load_action = .CLEAR, .clear_value = .{ .r = 0, .g = 0, .b = 0, .a = 1 } };
+    state.pass_action.colors[0] = .{
+        .load_action = .CLEAR,
+        .clear_value = .{ .r = 0, .g = 0, .b = 0, .a = 1 },
+    };
 }
 
 fn draw(w: f32, h: f32, t: f32, dt: f32) void {
@@ -93,27 +106,26 @@ fn draw(w: f32, h: f32, t: f32, dt: f32) void {
 }
 
 export fn frame() void {
-    const w: f32 = @floatFromInt(sapp.width());
-    const h: f32 = @floatFromInt(sapp.height());
     if (headless) {
-        draw(@floatFromInt(out_res), @floatFromInt(out_res), 0, 0);
-        readback() catch {};
+        const r: f32 = @floatFromInt(out_res);
+        draw(r, r, 0, 0);
+        readback();
         sapp.quit();
         return;
     }
-    const t: f32 = @floatCast(sapp.frameDuration() * @as(f64, @floatFromInt(state.frame)));
-    draw(w, h, t, @floatCast(sapp.frameDuration()));
+    const w: f32 = @floatFromInt(sapp.width());
+    const h: f32 = @floatFromInt(sapp.height());
+    const dt: f32 = @floatCast(sapp.frameDuration());
+    state.time += dt;
+    draw(w, h, state.time, dt);
     state.frame += 1;
 }
 
 export fn event(ev: [*c]const sapp.Event) void {
     const e = ev.*;
-    switch (e.type) {
-        .MOUSE_MOVE => {
-            state.mouse[0] = e.mouse_x;
-            state.mouse[1] = @as(f32, @floatFromInt(sapp.height())) - e.mouse_y;
-        },
-        else => {},
+    if (e.type == .MOUSE_MOVE) {
+        state.mouse[0] = e.mouse_x;
+        state.mouse[1] = @as(f32, @floatFromInt(sapp.height())) - e.mouse_y;
     }
 }
 
@@ -121,37 +133,37 @@ export fn cleanup() void {
     sg.shutdown();
 }
 
-fn readback() !void {
-    if (sg.queryBackend() != .GLCORE) return error.NotGL;
-    const res: usize = @intCast(out_res);
-    const buf = try std.heap.page_allocator.alloc(u8, res * res * 4);
-    defer std.heap.page_allocator.free(buf);
-    gl.glReadPixels(0, 0, @intCast(res), @intCast(res), gl.GL_RGBA, gl.GL_UNSIGNED_BYTE, buf.ptr);
+fn readback() void {
+    if (sg.queryBackend() != .GLCORE) return;
+    const res: c_int = out_res;
+    const w: usize = @intCast(out_res);
+    const raw = c.malloc(w * w * 4) orelse return;
+    defer c.free(raw);
+    c.glReadPixels(0, 0, res, res, c.GL_RGBA, c.GL_UNSIGNED_BYTE, raw);
+    const buf: [*]u8 = @ptrCast(raw);
 
-    var f = try std.fs.cwd().createFile(out_file, .{});
-    defer f.close();
-    var w = f.writer();
-    try w.print("P6\n{d} {d}\n255\n", .{ res, res });
+    const f = c.fopen(out_file, "wb") orelse return;
+    defer _ = c.fclose(f);
+    _ = c.fprintf(f, "P6\n%d %d\n255\n", res, res);
     // glReadPixels is bottom-first; PPM is top-first.
     var row: usize = 0;
-    while (row < res) : (row += 1) {
-        const src = (res - 1 - row) * res * 4;
+    while (row < w) : (row += 1) {
+        const src = (w - 1 - row) * w * 4;
         var x: usize = 0;
-        while (x < res) : (x += 1) {
-            try w.writeAll(buf[src + x * 4 .. src + x * 4 + 3]);
+        while (x < w) : (x += 1) {
+            const ptr: *const anyopaque = @ptrCast(buf + src + x * 4);
+            _ = c.fwrite(ptr, 1, 3, f);
         }
     }
 }
 
 pub fn main() void {
-    var args = std.process.args();
-    _ = args.skip();
-    if (args.next()) |a| {
-        if (std.mem.eql(u8, a, "render")) {
-            headless = true;
-            if (args.next()) |r| out_res = std.fmt.parseInt(i32, r, 10) catch 256;
-            if (args.next()) |o| out_file = o;
-        }
+    const argc = c._NSGetArgc().*;
+    const argv = c._NSGetArgv().*;
+    if (argc >= 4 and std.mem.eql(u8, std.mem.span(argv[1]), "render")) {
+        headless = true;
+        out_res = std.fmt.parseInt(i32, std.mem.span(argv[2]), 10) catch 256;
+        out_file = argv[3];
     }
     sapp.run(.{
         .init_cb = init,
@@ -160,6 +172,7 @@ pub fn main() void {
         .cleanup_cb = cleanup,
         .width = out_res,
         .height = out_res,
+        .high_dpi = false,
         .window_title = "zig-sokol",
         .logger = .{ .func = slog.func },
     });
